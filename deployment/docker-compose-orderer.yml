@@ -1,0 +1,31 @@
+version: '2'
+
+networks:
+    fabric:
+
+services:
+
+    orderer.dfarmadmin.com:
+        extends:
+            file: docker-compose-base.yml
+            service: orderer
+        container_name: orderer.dfarmadmin.com
+        environment:
+            - ORDERER_HOST=orderer.dfarmadmin.com
+        extra_hosts:
+            - "peer0.dfarmadmin.com:3.129.8.65"
+            - "peer0.yngadmin.com:3.137.192.134"
+            - "peer0.dfarmdemo.com:18.191.80.83"
+
+        volumes:
+            - ../crypto-config/ordererOrganizations/dfarmadmin.com/orderers/orderer.dfarmadmin.com/msp:/var/hyperledger/msp
+            - ../crypto-config/ordererOrganizations/dfarmadmin.com/orderers/orderer.dfarmadmin.com/tls:/var/hyperledger/tls
+            - ../channel-artifacts/:/var/hyperledger/configs
+            - ./backup_orderer:/var/hyperledger/production/orderer
+
+        networks:
+          fabric:
+             aliases:
+               - net
+        ports:
+          - 7050:7050

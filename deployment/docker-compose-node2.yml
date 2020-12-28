@@ -1,0 +1,100 @@
+version: '2'
+
+networks:
+    fabric:
+
+services:
+    ca.yngadmin.com:
+        image: hyperledger/fabric-ca
+        container_name: ca.yngadmin.com
+        environment:
+            - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+            - FABRIC_CA_SERVER_CA_NAME=ca.yngadmin.com
+            - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.yngadmin.com-cert.pem
+            - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/1dc119fd5caad7c1846192aeb3bed2b4ceb5b368e255ba29f0b8d3c60ca3919b_sk
+        ports:
+            - "7054:7054"
+        command: sh -c 'fabric-ca-server start -b admin:adminpw'
+        volumes:
+            - ../crypto-config/peerOrganizations/yngadmin.com/ca/:/etc/hyperledger/fabric-ca-server-config
+        networks:
+            - fabric
+
+    couchdb0:
+        container_name: couchdb0
+        image: hyperledger/fabric-couchdb
+        ports:
+            - "5984:5984"
+        networks:
+            - fabric
+    peer0.yngadmin.com:
+        extends:
+            file: docker-compose-base.yml
+            service: peer
+        container_name: peer0.yngadmin.com
+        environment:
+            - CORE_PEER_CHAINCODELISTENADDRESS=peer0.yngadmin.com:7052
+            - CORE_PEER_ID=peer0.yngadmin.com
+            - CORE_PEER_ADDRESS=peer0.yngadmin.com:7051
+            - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.dfarmadmin.com:7051
+            - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.yngadmin.com:7051
+            - CORE_PEER_GOSSIP_ORGLEADER=false
+            - CORE_PEER_GOSSIP_USELEADERELECTION=true
+            - CORE_PEER_LOCALMSPID=YngadminMSP
+            - CORE_PEER_TLS_CLIENTROOTCAS_FILES=/var/hyperledger/users/Admin@yngadmin.com/tls/ca.crt
+            - CORE_PEER_TLS_CLIENTCERT_FILE=/var/hyperledger/users/Admin@yngadmin.com/tls/client.crt
+            - CORE_PEER_TLS_CLIENTKEY_FILE=/var/hyperledger/users/Admin@yngadmin.com/tls/client.key
+            - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0:5984
+
+        volumes:
+            - ../crypto-config/peerOrganizations/yngadmin.com/peers/peer0.yngadmin.com/msp:/var/hyperledger/msp
+            - ../crypto-config/peerOrganizations/yngadmin.com/peers/peer0.yngadmin.com/tls:/var/hyperledger/tls
+            - ../crypto-config/peerOrganizations/yngadmin.com/users:/var/hyperledger/users
+            - ../channel-artifacts/:/var/hyperledger/configs
+            - ./backup_peer:/var/hyperledger/production
+        extra_hosts:
+            - "orderer.dfarmadmin.com:3.139.107.217"
+            - "peer0.dfarmadmin.com:3.129.8.65"
+            - "peer0.dfarmdemo.com:18.191.80.83"
+
+        networks:
+          fabric:
+             aliases:
+               - net
+        ports:
+          - 7051:7051
+          - 7053:7053
+        depends_on:
+          - couchdb0
+
+    cli:
+        container_name: cli
+        image: hyperledger/fabric-tools
+        tty: true
+        environment:
+          - GOPATH=/opt/gopath
+          - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+          - CORE_LOGGING_LEVEL=DEBUG
+          - CORE_PEER_ID=cli
+          - CORE_PEER_ADDRESS=peer0.yngadmin.com:7051
+          - CORE_PEER_LOCALMSPID=YngadminMSP
+          - CORE_PEER_TLS_ENABLED=false
+          - CORE_PEER_TLS_CERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/yngadmin.com/peers/peer0.yngadmin.com/tls/server.crt
+          - CORE_PEER_TLS_KEY_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/yngadmin.com/peers/peer0.yngadmin.com/tls/server.key
+          - CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/yngadmin.com/peers/peer0.yngadmin.com/tls/ca.crt
+          - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/yngadmin.com/users/Admin@yngadmin.com/msp
+          - CORE_CHAINCODE_KEEPALIVE=10
+        extra_hosts:
+          - "orderer.dfarmadmin.com:3.139.107.217"
+        working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+        command: /bin/bash
+        volumes:
+            - /var/run/:/host/var/run/
+            - ../../chaincode/:/opt/gopath/src/github.com/
+            # - $GOPATH/src/github.com/hyperledger/fabric/:/opt/gopath/src/github.com/hyperledger/fabric/
+            - ../crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/
+            - ../channel-artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/
+        depends_on:
+          - peer0.yngadmin.com
+        networks:
+            - fabric
